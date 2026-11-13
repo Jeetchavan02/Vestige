@@ -20,6 +20,19 @@ function blocked(): never {
  * (`postMessage`), and before any user code runs. Irreversible by design.
  */
 export function lockdown(scope: object): void {
+  // Collected first: the loop below removes the global `Function` binding.
+  const prototypes: object[] = [Object.getPrototypeOf(function () {})];
+  try {
+    // Reached through syntax, so they exist even though the instrumenter
+    // rejects async and generator functions in user code.
+    prototypes.push(
+      Object.getPrototypeOf(async function () {}),
+      Object.getPrototypeOf(function* () {}),
+      Object.getPrototypeOf(async function* () {}),
+    );
+  } catch {
+    // Older engines without these forms have nothing to patch.
+  }
   for (const name of [...SHADOWED, ...EXTRA]) {
     try {
       Object.defineProperty(scope, name, {
@@ -33,18 +46,6 @@ export function lockdown(scope: object): void {
     }
   }
 
-  const prototypes: object[] = [Function.prototype];
-  try {
-    // Reached through syntax, so they exist even though the instrumenter
-    // rejects async and generator functions in user code.
-    prototypes.push(
-      Object.getPrototypeOf(async function () {}),
-      Object.getPrototypeOf(function* () {}),
-      Object.getPrototypeOf(async function* () {}),
-    );
-  } catch {
-    // Older engines without these forms have nothing to patch.
-  }
   for (const proto of prototypes) {
     try {
       Object.defineProperty(proto, 'constructor', {
