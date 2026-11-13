@@ -5,7 +5,7 @@ import { assignment, call, returnStatement, unary, update } from './expressions'
 import { wrapFunction, wrapProgram } from './functions';
 import { forStatement, forXStatement, whileStatement } from './loops';
 import { normalize } from './normalize';
-import { rewriteList } from './statements';
+import { catchClause, rewriteList } from './statements';
 import { validate } from './validate';
 
 /**
@@ -51,6 +51,7 @@ export function createPlugin(locs: SourceLoc[]) {
           },
         },
         Function: { exit: (path) => wrapFunction(ctx, path) },
+        CatchClause: { exit: (path) => catchClause(ctx, path) },
         ReturnStatement: { exit: (path) => returnStatement(ctx, path) },
         ForStatement: { exit: (path) => forStatement(ctx, path) },
         ForInStatement: { exit: (path) => forXStatement(ctx, path) },

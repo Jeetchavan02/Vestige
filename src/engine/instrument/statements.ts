@@ -91,3 +91,16 @@ export function rewriteList(ctx: Ctx, list: T.Statement[], scopePath: NodePath):
   }
   return [...hoisted, ...out];
 }
+
+/** catch (e) { … } → catch (e) { $v.d($s, "e", e); … } */
+export function catchClause(ctx: Ctx, path: NodePath<T.CatchClause>): void {
+  const { t } = ctx;
+  const node = path.node;
+  if (!ctx.once(node) || !node.param) return;
+  const writes: T.Statement[] = [];
+  for (const name of Object.keys(t.getBindingIdentifiers(node.param))) {
+    const ref = ctx.varRef(name, path);
+    if (ref) writes.push(ctx.stmt(ctx.hook('d', ...ref, t.identifier(name))));
+  }
+  node.body.body.unshift(...writes);
+}
