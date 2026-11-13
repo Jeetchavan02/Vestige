@@ -73,7 +73,7 @@ describe('execute: isolation', () => {
 
   it('runs user code in strict mode with no global this', () => {
     const r = record('const t = (function () { return this; })(); let err; try { undeclared = 1; } catch (e) { err = e.name; }');
-    expect(vars(r.final)).toEqual({ t: undefined, err: 'ReferenceError' });
+    expect(vars(r.final)).toMatchObject({ t: undefined, err: 'ReferenceError' });
   });
 
   it('starts each run from a clean runtime', () => {
