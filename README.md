@@ -1,10 +1,22 @@
 # Vestige
 
-A browser-based time-travel debugger for synchronous JavaScript. Runs entirely
-client-side: no backend, no API keys.
+A time-travel debugger for JavaScript that runs entirely in your browser. Run
+your code once, then scrub backward and forward through every step and watch
+the variables change. No backend, no account, no API keys.
 
-This repository currently contains the **engine**: instrumentation, recording
-and replay. The UI is not built yet.
+**Try it: https://vestige-js-debugger.vercel.app**
+
+## Using it
+
+1. Pick an example (buggy bubble sort, Fibonacci, binary search) or write your
+   own code in the editor.
+2. Press **Run**. The whole execution is recorded.
+3. Drag the timeline, click **←** / **→**, or press the Left / Right arrow
+   keys to move one event at a time.
+
+The editor highlights the line being executed. The inspector shows the
+variables of the running function and every enclosing scope, and marks the
+values that changed at the current step.
 
 ## How it works
 
@@ -22,7 +34,7 @@ source ──instrument()──▶ recording code ──Web Worker──▶ Trac
 
 The full design is in [docs/ENGINE.md](docs/ENGINE.md).
 
-## Usage
+## Engine API
 
 ```ts
 import { trace, Replayer, currentLoc } from './src/engine';
@@ -72,8 +84,21 @@ and column: `async`/`await`, generators, `import`/`export`, dynamic `import()`,
 ```bash
 npm install
 npm test          # engine tests, run in Node
-npm run dev       # harness page; the engine is on window.vestige
+npm run dev       # the app; the engine is also on window.vestige
 npm run build
 ```
 
-Stack: TypeScript, Vite, `@babel/standalone`, Web Workers. No framework.
+Layout: `src/engine` (instrumenter, recorder, replayer, worker sandbox) and
+`src/ui` (editor, inspector, timeline). The UI only talks to the engine
+through `trace()` and `Replayer`.
+
+Stack: TypeScript, Vite, `@babel/standalone`, CodeMirror 6, Web Workers. No
+framework.
+
+## Deployment
+
+The site is a static Vite build hosted on Vercel.
+
+```bash
+npx vercel --prod
+```

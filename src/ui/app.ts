@@ -1,25 +1,10 @@
 import { currentLoc, Replayer, trace, type SourceLoc, type TraceResult } from '../engine';
 import { createEditor } from './editor';
+import { EXAMPLES } from './examples';
 import { createInspector } from './inspector';
 
-const DEFAULT_CODE = `// Bubble sort with a bug. Hit Run, then drag the timeline backward
-// and watch \`arr\` to find the line where a value gets lost.
-function bubbleSort(arr) {
-  for (let i = 0; i < arr.length; i++) {
-    for (let j = 0; j < arr.length - i - 1; j++) {
-      if (arr[j] > arr[j + 1]) {
-        arr[j] = arr[j + 1];
-        arr[j + 1] = arr[j];
-      }
-    }
-  }
-  return arr;
-}
-
-const numbers = [5, 2, 9, 1, 7];
-const sorted = bubbleSort(numbers);
-console.log(sorted);
-`;
+/** Rewind mark: a clock face inside a counter-clockwise arrow. */
+const LOGO = `<svg class="logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3.5 8.4"/><path d="M3.5 3.6v4.8h4.8"/><path d="M12 7.5V12l3 2"/></svg>`;
 
 function describe(result: TraceResult): { text: string; bad: boolean } {
   const count = `${result.events.length.toLocaleString()} events`;
@@ -42,7 +27,8 @@ function describe(result: TraceResult): { text: string; bad: boolean } {
 export function mountApp(root: HTMLElement): void {
   root.innerHTML = `
     <header class="topbar">
-      <h1 class="brand">Vestige</h1>
+      <h1 class="brand">${LOGO}Vestige</h1>
+      <select class="examples" aria-label="Example program"></select>
       <button class="run" type="button">Run</button>
       <span class="counter" role="status">Not run yet</span>
     </header>
@@ -51,6 +37,8 @@ export function mountApp(root: HTMLElement): void {
       <aside class="inspector" aria-label="Variables"></aside>
     </main>
     <footer class="timeline">
+      <button class="step step-back" type="button" disabled aria-label="Step back one event">←</button>
+      <button class="step step-forward" type="button" disabled aria-label="Step forward one event">→</button>
       <input class="scrubber" type="range" min="0" max="0" value="0" step="1" disabled aria-label="Timeline" />
       <span class="position">0 / 0</span>
     </footer>`;
@@ -59,7 +47,11 @@ export function mountApp(root: HTMLElement): void {
   const counter = root.querySelector<HTMLElement>('.counter')!;
   const scrubber = root.querySelector<HTMLInputElement>('.scrubber')!;
   const position = root.querySelector<HTMLElement>('.position')!;
-  const editor = createEditor(root.querySelector<HTMLElement>('.editor')!, DEFAULT_CODE);
+  const stepBack = root.querySelector<HTMLButtonElement>('.step-back')!;
+  const stepForward = root.querySelector<HTMLButtonElement>('.step-forward')!;
+  const examples = root.querySelector<HTMLSelectElement>('.examples')!;
+  for (const [index, example] of EXAMPLES.entries()) examples.add(new Option(example.name, String(index)));
+  const editor = createEditor(root.querySelector<HTMLElement>('.editor')!, EXAMPLES[0].code);
   const inspector = createInspector(root.querySelector<HTMLElement>('.inspector')!);
 
   let replayer: Replayer | null = null;
@@ -72,6 +64,17 @@ export function mountApp(root: HTMLElement): void {
     inspector.render(state);
     editor.highlightLine(locs[currentLoc(state)]?.line ?? null);
     position.textContent = `${(index + 1).toLocaleString()} / ${replayer.length.toLocaleString()}`;
+    stepBack.disabled = index <= 0;
+    stepForward.disabled = index >= replayer.length - 1;
+  };
+
+  /** Move the timeline by one event in either direction. */
+  const step = (delta: number) => {
+    if (!replayer) return;
+    const next = Math.max(0, Math.min(replayer.length - 1, Number(scrubber.value) + delta));
+    if (next === Number(scrubber.value)) return;
+    scrubber.value = String(next);
+    show(next);
   };
 
   const clearTrace = () => {
@@ -81,6 +84,8 @@ export function mountApp(root: HTMLElement): void {
     scrubber.max = '0';
     scrubber.value = '0';
     position.textContent = '0 / 0';
+    stepBack.disabled = true;
+    stepForward.disabled = true;
     inspector.render(null);
   };
 
@@ -110,6 +115,25 @@ export function mountApp(root: HTMLElement): void {
 
   runButton.addEventListener('click', run);
   scrubber.addEventListener('input', () => show(Number(scrubber.value)));
+  stepBack.addEventListener('click', () => step(-1));
+  stepForward.addEventListener('click', () => step(1));
+  // Arrow keys step from anywhere except where they already mean something:
+  // the editor (caret), the dropdown (options) and the scrubber (native step).
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('.cm-editor, select, input')) return;
+    event.preventDefault();
+    step(event.key === 'ArrowLeft' ? -1 : 1);
+  });
+  examples.addEventListener('change', () => {
+    editor.setCode(EXAMPLES[Number(examples.value)].code);
+    editor.highlightLine(null);
+    clearTrace();
+    counter.textContent = 'Not run yet';
+    counter.classList.remove('bad');
+  });
   // An edited program no longer matches the recorded trace.
   editor.onEdit(() => {
     if (!replayer) return;
